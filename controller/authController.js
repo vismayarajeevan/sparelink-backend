@@ -1,5 +1,7 @@
 const users = require('../model/userModel')
-const nodemailer = require('nodemailer')
+const nodemailer = require('nodemailer') //for otp
+const cryptojs = require('crypto-js')
+
 
 
 // nodemailer
@@ -11,7 +13,7 @@ const transporter = nodemailer.createTransport({
     }
 })
 
-// register
+//1. register
 exports.registerController = async(req,res)=>{
     try {
         // take alll input field values using destructuring
@@ -29,6 +31,9 @@ exports.registerController = async(req,res)=>{
         }
 
         // encrypted the password
+        const encryptedPassword = cryptojs.AES.encrypt(password, process.env.PASSWORD_SECRET_KEY).toString();
+
+
 
         // generate random 6 digit otp
         const otp = Math.floor(100000 + Math.random() *900000)
@@ -47,24 +52,18 @@ exports.registerController = async(req,res)=>{
                 // email is exist user not verified, resend otp and update password
                 user.otp = otp
                 user.otpExpiry= otpExpiry
-
-
+                user.password = encryptedPassword
             }
+        
 
         }else{
-            // check phone number is registered with another verified user
-            const phoneNumberExists = await users.findOne({phoneNumber})
-
-            if(phoneNumberExists && phoneNumber.verified){
-                return res.status(400).json({message:'Phone number already registered with a verified user'})
-            }
-
-            // if both email and phone number are unique , , create a new unverified user
+          
+            // if  email unique , , create a new unverified user
             const newUser = new users({
                 userName,
                 email,
                 phoneNumber,
-                password,
+                password:encryptedPassword,
                 verified:false,
                 otp,
                 otpExpiry,
@@ -95,3 +94,80 @@ exports.registerController = async(req,res)=>{
 
     }
 }
+
+
+// 2.verify otp
+
+exports.verifyOtpController = async(req,res)=>{
+    try {
+        const {email, otp} = req.body
+
+        const user = await users.findOne({email})
+
+        // check existing user or not
+        if(!user) {
+            return res.status(404).json({message:"User not found"})
+        }
+        console.log(user.otp,otp);
+        
+
+        // check otp is correct or not
+        if(user.otp !==otp){
+            return res.status(400).json({message: 'Invalid OTP'})
+        }
+
+        if(Date.now() > user.otpExpiry){
+            return res.status(400).json({message:"OTP expired"})
+        }
+
+        // mark user as verified
+        user.verified = true
+        user.otp=''
+        user.otpExpiry =null
+        await user.save()
+
+        res.status(200).json({message:"User verified successfully"})
+        
+    } catch (error) {
+        res.status(500).json({message:'Failed to verify OTP'})
+    }
+}
+
+// 3. Resend otp
+exports.resendOtpRegController = async(req,res)=>{
+    try {
+        const {email} = req.body
+        
+        const user = await users.findOne({email})
+        if(!user){
+            return res.status(400).json({ message: 'User not found' })
+        }
+        if(user.verified){
+            res.status(400).json({message: 'User already verified'})
+        }
+
+        // user is present and not verified , create new otp
+        const otp = Math.floor(100000 + Math.random()* 900000)
+        const otpExpiry = Date.now()+140000
+
+        user.otp = otp
+        user.otpExpiry= otpExpiry
+
+        await user.save()
+
+        // sens otp via nodemailer
+        await transporter.sendMail({
+             from:process.env.NodemailerMail,
+             to: email,
+             subject: "Resend OTP Verification",
+             text: `Your OTP for verification is: ${otp}`
+        })
+        res.status(200).json({message: 'OTP resent successfully'})
+        
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to resend OTP' })
+    }
+}
+
+
+// 
