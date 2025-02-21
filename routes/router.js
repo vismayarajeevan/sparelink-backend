@@ -12,5 +12,7 @@ router.post('/verifyOtpReg',authController.verifyOtpController)
 // reset otp for register
 router.post('/resetOtpReg',authController.resendOtpRegController)
 
+// login 
+router.post('/login',authController.loginController)
 
 module.exports = router

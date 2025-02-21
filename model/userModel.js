@@ -24,6 +24,16 @@ const userSchema = new mongoose.Schema({
     verified:{
         type:Boolean,
         default:false
+    },
+    isAdmin:{
+        type:Boolean,
+        default:false
+    },
+    photoURL:{
+        type:String
+    },
+    uid:{
+        type:String
     }
 
 

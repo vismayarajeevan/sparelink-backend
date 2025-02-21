@@ -3,7 +3,6 @@ const mongoose = require('mongoose')
 
 // 2. get connection string
 const connectionString = process.env.DATABASEURL
-console.log(connectionString);
 
 
 // 4. connect with mongodb

@@ -170,4 +170,33 @@ exports.resendOtpRegController = async(req,res)=>{
 }
 
 
-// 
+// Login 
+exports.loginController= async(req,res)=>{
+    try {
+        // user entered values
+        const {email, password} = req.body
+        console.log(req.body);
+        
+
+        const loginUser = await users.findOne({email})
+        console.log(loginUser);
+        
+        if(!loginUser || !loginUser.verified){
+            return res.status(401).json({ message: "User not found or not verified" })
+        }
+
+        // descrypt user password to check password is correct or not
+        const decryptedPassword = cryptojs.AES.decrypt(loginUser.password,process.env.PASSWORD_SECRET_KEY).toString(cryptojs.enc.Utf8);
+        console.log(decryptedPassword);
+        
+
+        // check user entered password and password in the mongodb are same
+        if(decryptedPassword !== password){
+            return res.status(401).json({ message: "Incorrect password" })
+        }
+        
+        res.status(200).json(loginUser)
+    } catch (error) {
+        res.status(500).json({ message: "Failed to log in" })
+    }
+}
