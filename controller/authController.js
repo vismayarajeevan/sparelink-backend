@@ -1,6 +1,7 @@
 const users = require('../model/userModel')
 const nodemailer = require('nodemailer') //for otp
 const cryptojs = require('crypto-js')
+const jwt = require('jsonwebtoken')
 
 
 
@@ -177,6 +178,7 @@ exports.loginController= async(req,res)=>{
         const {email, password} = req.body
         console.log(req.body);
         
+        
 
         const loginUser = await users.findOne({email})
         console.log(loginUser);
@@ -194,9 +196,57 @@ exports.loginController= async(req,res)=>{
         if(decryptedPassword !== password){
             return res.status(401).json({ message: "Incorrect password" })
         }
+
+        // token generation
+        const token = jwt.sign({
+            userId:loginUser._id,
+            isAdmin:loginUser.isAdmin
+        }, 
+        process.env.JWT_SECRET_KEY)
+        console.log(token);
         
-        res.status(200).json(loginUser)
+        res.status(200).json({ message: "Login successful", token,userId:loginUser._id })
     } catch (error) {
         res.status(500).json({ message: "Failed to log in" })
+    }
+}
+
+
+// forgot password
+exports.forgotPasswordController = async(req,res)=>{
+    const {email} = req.body
+
+    try {
+        const user = await users.findOne({email})
+
+        if(!user){
+           return res.status(404).json({ message: 'User not found' })
+        }
+
+        // create a random otp and expiry time
+        const otp = Math.floor(100000 + Math.random() * 900000);
+        const otpExpiry = Date.now() + 140000; 
+
+        user.otp = otp;
+        user.otpExpiry = otpExpiry; 
+
+        // save users to mongodb
+        await user.save();
+
+        // send otp using nodemailer
+        await transporter.sendMail({
+            from:process.env.NodemailerMail,
+            to: email,
+            subject: "Reset Password OTP",
+            text: `Your OTP to reset the password is: ${otp}`
+       })
+
+       res.status(200).json({ message: 'OTP sent successfully' });
+
+ 
+
+        
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to send OTP' })
     }
 }
